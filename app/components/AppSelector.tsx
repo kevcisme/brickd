@@ -178,6 +178,55 @@ const AppSelector = ({
         </TouchableOpacity>
       </View>
 
+      {/* Select All Option */}
+      <View className="px-4 py-2 border-b border-gray-200">
+        <TouchableOpacity
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            const allAppIds = filteredApps.map((app) => app.id);
+            const allSelected = allAppIds.every((id) =>
+              selectedApps.includes(id),
+            );
+
+            if (allSelected) {
+              // Deselect all filtered apps
+              setSelectedApps((prev) =>
+                prev.filter((id) => !allAppIds.includes(id)),
+              );
+            } else {
+              // Select all filtered apps
+              setSelectedApps((prev) => {
+                const newSelection = [...prev];
+                allAppIds.forEach((id) => {
+                  if (!newSelection.includes(id)) {
+                    newSelection.push(id);
+                  }
+                });
+                return newSelection;
+              });
+            }
+          }}
+          className="flex-row items-center py-3"
+        >
+          <View
+            className={`w-6 h-6 rounded-full border mr-3 justify-center items-center ${
+              filteredApps.length > 0 &&
+              filteredApps.every((app) => selectedApps.includes(app.id))
+                ? "bg-blue-500 border-blue-500"
+                : "border-gray-300"
+            }`}
+          >
+            {filteredApps.length > 0 &&
+              filteredApps.every((app) => selectedApps.includes(app.id)) && (
+                <Check size={16} color="white" />
+              )}
+          </View>
+          <Text className="text-base font-medium text-gray-800">
+            Select All {selectedCategory ? `${selectedCategory} Apps` : "Apps"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Category filters */}
       <View className="px-4 py-2 flex-row flex-wrap">
         {categories.map((category) => (
