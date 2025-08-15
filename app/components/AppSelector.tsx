@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,16 +6,11 @@ import {
   FlatList,
   TouchableOpacity,
   Image,
+  ActivityIndicator,
 } from "react-native";
 import { Search, Check, Filter } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
-
-interface App {
-  id: string;
-  name: string;
-  icon: string;
-  category: string;
-}
+import { appService, App } from "../services/AppService";
 
 interface AppSelectorProps {
   onSelectionChange?: (selectedApps: string[]) => void;
@@ -26,78 +21,50 @@ const AppSelector = ({
   onSelectionChange = () => {},
   initialSelectedApps = [],
 }: AppSelectorProps) => {
-  // Mock data for installed apps
-  const mockApps: App[] = [
-    {
-      id: "com.instagram.ios",
-      name: "Instagram",
-      icon: "https://api.dicebear.com/7.x/avataaars/svg?seed=instagram",
-      category: "Social",
-    },
-    {
-      id: "com.facebook.Facebook",
-      name: "Facebook",
-      icon: "https://api.dicebear.com/7.x/avataaars/svg?seed=facebook",
-      category: "Social",
-    },
-    {
-      id: "com.atebits.Tweetie2",
-      name: "Twitter",
-      icon: "https://api.dicebear.com/7.x/avataaars/svg?seed=twitter",
-      category: "Social",
-    },
-    {
-      id: "com.burbn.tiktok",
-      name: "TikTok",
-      icon: "https://api.dicebear.com/7.x/avataaars/svg?seed=tiktok",
-      category: "Entertainment",
-    },
-    {
-      id: "com.netflix.Netflix",
-      name: "Netflix",
-      icon: "https://api.dicebear.com/7.x/avataaars/svg?seed=netflix",
-      category: "Entertainment",
-    },
-    {
-      id: "com.youtube.ios",
-      name: "YouTube",
-      icon: "https://api.dicebear.com/7.x/avataaars/svg?seed=youtube",
-      category: "Entertainment",
-    },
-    {
-      id: "com.reddit.Reddit",
-      name: "Reddit",
-      icon: "https://api.dicebear.com/7.x/avataaars/svg?seed=reddit",
-      category: "Social",
-    },
-    {
-      id: "com.spotify.client",
-      name: "Spotify",
-      icon: "https://api.dicebear.com/7.x/avataaars/svg?seed=spotify",
-      category: "Music",
-    },
-    {
-      id: "com.amazon.Amazon",
-      name: "Amazon",
-      icon: "https://api.dicebear.com/7.x/avataaars/svg?seed=amazon",
-      category: "Shopping",
-    },
-    {
-      id: "com.apple.mobilesafari",
-      name: "Safari",
-      icon: "https://api.dicebear.com/7.x/avataaars/svg?seed=safari",
-      category: "Productivity",
-    },
-  ];
-
+  const [apps, setApps] = useState<App[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedApps, setSelectedApps] =
-    useState<string[]>(initialSelectedApps);
+  const [selectedApps, setSelectedApps] = useState<string[]>(initialSelectedApps);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const categories = Array.from(new Set(mockApps.map((app) => app.category)));
+  // Load apps and categories on component mount
+  useEffect(() => {
+    loadApps();
+  }, []);
 
-  const filteredApps = mockApps.filter((app) => {
+  // Load selected apps from storage when component mounts
+  useEffect(() => {
+    loadSelectedApps();
+  }, []);
+
+  const loadApps = async () => {
+    try {
+      setIsLoading(true);
+      const [appsData, categoriesData] = await Promise.all([
+        appService.getApps(),
+        appService.getCategories(),
+      ]);
+      setApps(appsData);
+      setCategories(categoriesData);
+    } catch (error) {
+      console.error('Error loading apps:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadSelectedApps = async () => {
+    try {
+      const storedSelectedApps = await appService.getSelectedApps();
+      setSelectedApps(storedSelectedApps);
+    } catch (error) {
+      console.error('Error loading selected apps:', error);
+    }
+  };
+
+  const filteredApps = apps.filter((app) => {
     const matchesSearch = app.name
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
@@ -119,9 +86,49 @@ const AppSelector = ({
     });
   };
 
-  const handleConfirmSelection = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    onSelectionChange(selectedApps);
+  const handleConfirmSelection = async () => {
+    try {
+      setIsSaving(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      
+      // Save to AppService storage
+      await appService.saveSelectedApps(selectedApps);
+      
+      // Call the parent callback
+      onSelectionChange(selectedApps);
+      
+      // Show success feedback
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error('Error saving app selection:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSelectAll = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const allAppIds = filteredApps.map((app) => app.id);
+    const allSelected = allAppIds.every((id) => selectedApps.includes(id));
+
+    if (allSelected) {
+      // Deselect all filtered apps
+      setSelectedApps((prev) =>
+        prev.filter((id) => !allAppIds.includes(id)),
+      );
+    } else {
+      // Select all filtered apps
+      setSelectedApps((prev) => {
+        const newSelection = [...prev];
+        allAppIds.forEach((id) => {
+          if (!newSelection.includes(id)) {
+            newSelection.push(id);
+          }
+        });
+        return newSelection;
+      });
+    }
   };
 
   const renderAppItem = ({ item }: { item: App }) => {
@@ -139,6 +146,9 @@ const AppSelector = ({
         <View className="flex-1">
           <Text className="text-base font-medium">{item.name}</Text>
           <Text className="text-xs text-gray-500">{item.category}</Text>
+          {item.isSystemApp && (
+            <Text className="text-xs text-blue-500">System App</Text>
+          )}
         </View>
         <View
           className={`w-6 h-6 rounded-full border ${isSelected ? "bg-blue-500 border-blue-500" : "border-gray-300"} justify-center items-center`}
@@ -148,6 +158,15 @@ const AppSelector = ({
       </TouchableOpacity>
     );
   };
+
+  if (isLoading) {
+    return (
+      <View className="flex-1 justify-center items-center bg-white rounded-xl shadow-md">
+        <ActivityIndicator size="large" color="#3b82f6" />
+        <Text className="mt-4 text-gray-600">Loading apps...</Text>
+      </View>
+    );
+  }
 
   return (
     <View className="bg-white rounded-xl shadow-md overflow-hidden w-full h-full">
@@ -179,53 +198,31 @@ const AppSelector = ({
       </View>
 
       {/* Select All Option */}
-      <View className="px-4 py-2 border-b border-gray-200">
-        <TouchableOpacity
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            const allAppIds = filteredApps.map((app) => app.id);
-            const allSelected = allAppIds.every((id) =>
-              selectedApps.includes(id),
-            );
-
-            if (allSelected) {
-              // Deselect all filtered apps
-              setSelectedApps((prev) =>
-                prev.filter((id) => !allAppIds.includes(id)),
-              );
-            } else {
-              // Select all filtered apps
-              setSelectedApps((prev) => {
-                const newSelection = [...prev];
-                allAppIds.forEach((id) => {
-                  if (!newSelection.includes(id)) {
-                    newSelection.push(id);
-                  }
-                });
-                return newSelection;
-              });
-            }
-          }}
-          className="flex-row items-center py-3"
-        >
-          <View
-            className={`w-6 h-6 rounded-full border mr-3 justify-center items-center ${
-              filteredApps.length > 0 &&
-              filteredApps.every((app) => selectedApps.includes(app.id))
-                ? "bg-blue-500 border-blue-500"
-                : "border-gray-300"
-            }`}
+      {filteredApps.length > 0 && (
+        <View className="px-4 py-2 border-b border-gray-200">
+          <TouchableOpacity
+            onPress={handleSelectAll}
+            className="flex-row items-center py-3"
           >
-            {filteredApps.length > 0 &&
-              filteredApps.every((app) => selectedApps.includes(app.id)) && (
-                <Check size={16} color="white" />
-              )}
-          </View>
-          <Text className="text-base font-medium text-gray-800">
-            Select All {selectedCategory ? `${selectedCategory} Apps` : "Apps"}
-          </Text>
-        </TouchableOpacity>
-      </View>
+            <View
+              className={`w-6 h-6 rounded-full border mr-3 justify-center items-center ${
+                filteredApps.length > 0 &&
+                filteredApps.every((app) => selectedApps.includes(app.id))
+                  ? "bg-blue-500 border-blue-500"
+                  : "border-gray-300"
+              }`}
+            >
+              {filteredApps.length > 0 &&
+                filteredApps.every((app) => selectedApps.includes(app.id)) && (
+                  <Check size={16} color="white" />
+                )}
+            </View>
+            <Text className="text-base font-medium text-gray-800">
+              Select All {selectedCategory ? `${selectedCategory} Apps` : "Apps"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Category filters */}
       <View className="px-4 py-2 flex-row flex-wrap">
@@ -255,6 +252,13 @@ const AppSelector = ({
         renderItem={renderAppItem}
         keyExtractor={(item) => item.id}
         className="flex-1"
+        ListEmptyComponent={
+          <View className="flex-1 justify-center items-center py-8">
+            <Text className="text-gray-500 text-center">
+              {searchQuery ? "No apps found matching your search" : "No apps available"}
+            </Text>
+          </View>
+        }
       />
 
       <View className="p-4 border-t border-gray-200 space-y-3">
@@ -264,14 +268,21 @@ const AppSelector = ({
         </Text>
         <TouchableOpacity
           onPress={handleConfirmSelection}
-          className={`py-3 px-6 rounded-lg ${selectedApps.length > 0 ? "bg-blue-500" : "bg-gray-300"}`}
-          disabled={selectedApps.length === 0}
+          className={`py-3 px-6 rounded-lg ${selectedApps.length > 0 && !isSaving ? "bg-blue-500" : "bg-gray-300"}`}
+          disabled={selectedApps.length === 0 || isSaving}
         >
-          <Text
-            className={`text-center font-medium ${selectedApps.length > 0 ? "text-white" : "text-gray-500"}`}
-          >
-            Confirm Selection
-          </Text>
+          {isSaving ? (
+            <View className="flex-row items-center justify-center">
+              <ActivityIndicator size="small" color="white" />
+              <Text className="text-white font-medium ml-2">Saving...</Text>
+            </View>
+          ) : (
+            <Text
+              className={`text-center font-medium ${selectedApps.length > 0 ? "text-white" : "text-gray-500"}`}
+            >
+              Confirm Selection
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>

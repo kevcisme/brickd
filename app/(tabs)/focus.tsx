@@ -3,37 +3,47 @@ import { View, Text, ScrollView, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Clock, Play, Square, BarChart3 } from "lucide-react-native";
 import FocusStatus from "../components/FocusStatus";
-
-interface FocusSession {
-  id: string;
-  date: string;
-  duration: string;
-  appsBlocked: number;
-}
+import { focusSessionService, FocusSession } from "../services/FocusSessionService";
+import { formatDate, formatDuration } from "../utils/dateUtils";
 
 export default function FocusScreen() {
   const [isBlocked, setIsBlocked] = useState(false);
   const [focusStartTime, setFocusStartTime] = useState<Date | null>(null);
-  const [focusSessions] = useState<FocusSession[]>([
-    {
-      id: "1",
-      date: "Today, 2:30 PM",
-      duration: "1h 25m",
-      appsBlocked: 5,
-    },
-    {
-      id: "2",
-      date: "Yesterday, 10:15 AM",
-      duration: "45m",
-      appsBlocked: 3,
-    },
-    {
-      id: "3",
-      date: "Dec 20, 3:45 PM",
-      duration: "2h 10m",
-      appsBlocked: 7,
-    },
-  ]);
+  const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
+  const [totalFocusTime, setTotalFocusTime] = useState<number>(0);
+  const [averageSessionDuration, setAverageSessionDuration] = useState<number>(0);
+  const [sessionCount, setSessionCount] = useState<number>(0);
+
+  // Load focus sessions and stats on component mount
+  useEffect(() => {
+    loadFocusData();
+  }, []);
+
+  const loadFocusData = async () => {
+    try {
+      const sessions = await focusSessionService.getRecentSessions(10);
+      setFocusSessions(sessions);
+      
+      const totalTime = await focusSessionService.getTotalFocusTime(7);
+      setTotalFocusTime(totalTime);
+      
+      const avgDuration = await focusSessionService.getAverageSessionDuration(7);
+      setAverageSessionDuration(avgDuration);
+      
+      const recentSessions = await focusSessionService.getRecentSessions(7);
+      setSessionCount(recentSessions.length);
+    } catch (error) {
+      console.error('Error loading focus data:', error);
+    }
+  };
+
+  const handleSessionEnd = async (duration: number) => {
+    if (focusStartTime) {
+      const endTime = new Date();
+      await focusSessionService.createSession(focusStartTime, endTime);
+      await loadFocusData(); // Reload data to show the new session
+    }
+  };
 
   const handleToggleFocusMode = () => {
     if (isBlocked) {
@@ -67,6 +77,7 @@ export default function FocusScreen() {
               isActive={isBlocked}
               startTime={focusStartTime || new Date()}
               onStateChange={setIsBlocked}
+              onSessionEnd={handleSessionEnd}
             />
           </View>
 
@@ -112,10 +123,10 @@ export default function FocusScreen() {
                 <View className="flex-row justify-between items-start">
                   <View className="flex-1">
                     <Text className="font-medium text-gray-800">
-                      {session.duration}
+                      {formatDuration(session.duration)}
                     </Text>
                     <Text className="text-sm text-gray-500 mt-1">
-                      {session.date}
+                      {formatDate(session.startTime)}
                     </Text>
                   </View>
                   <View className="items-end">
@@ -135,15 +146,21 @@ export default function FocusScreen() {
             </Text>
             <View className="flex-row justify-between">
               <View className="items-center">
-                <Text className="text-2xl font-bold text-blue-600">12h</Text>
+                <Text className="text-2xl font-bold text-blue-600">
+                  {formatDuration(totalFocusTime)}
+                </Text>
                 <Text className="text-sm text-gray-600">Total Focus</Text>
               </View>
               <View className="items-center">
-                <Text className="text-2xl font-bold text-blue-600">8</Text>
+                <Text className="text-2xl font-bold text-blue-600">
+                  {sessionCount}
+                </Text>
                 <Text className="text-sm text-gray-600">Sessions</Text>
               </View>
               <View className="items-center">
-                <Text className="text-2xl font-bold text-blue-600">1h 30m</Text>
+                <Text className="text-2xl font-bold text-blue-600">
+                  {formatDuration(averageSessionDuration)}
+                </Text>
                 <Text className="text-sm text-gray-600">Avg Session</Text>
               </View>
             </View>

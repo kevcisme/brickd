@@ -4,6 +4,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Clock, Zap } from "lucide-react-native";
 import FocusStatus from "../components/FocusStatus";
 import OnboardingFlow from "../components/OnboardingFlow";
+import SelectedAppsDisplay from "../components/SelectedAppsDisplay";
+import { focusSessionService, FocusSession } from "../services/FocusSessionService";
 
 export default function HomeScreen() {
   const [isFirstTimeUser, setIsFirstTimeUser] = useState(true);
@@ -20,6 +22,13 @@ export default function HomeScreen() {
       setShowOnboarding(false);
     }, 1000);
   }, []);
+
+  const handleSessionEnd = async (duration: number) => {
+    if (focusStartTime) {
+      const endTime = new Date();
+      await focusSessionService.createSession(focusStartTime, endTime);
+    }
+  };
 
   const handleToggleFocusMode = () => {
     if (isBlocked) {
@@ -65,6 +74,7 @@ export default function HomeScreen() {
           isActive={isBlocked}
           startTime={focusStartTime || new Date()}
           onStateChange={setIsBlocked}
+          onSessionEnd={handleSessionEnd}
         />
 
         {/* Main Content Area */}
@@ -92,6 +102,9 @@ export default function HomeScreen() {
                 </Text>
               </View>
             </View>
+
+            {/* Selected Apps Display */}
+            <SelectedAppsDisplay maxDisplay={3} />
 
             {/* Quick Actions */}
             <View className="bg-blue-50 p-4 rounded-xl">
