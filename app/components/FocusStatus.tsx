@@ -7,19 +7,21 @@ interface FocusStatusProps {
   isActive?: boolean;
   startTime?: Date;
   onStateChange?: (isActive: boolean) => void;
+  onSessionEnd?: (duration: number) => void;
 }
 
 const FocusStatus = ({
   isActive = false,
   startTime = new Date(),
   onStateChange = () => {},
+  onSessionEnd = () => {},
 }: FocusStatusProps) => {
   const [elapsedTime, setElapsedTime] = useState<string>("00:00:00");
   const [animation] = useState(new Animated.Value(0));
 
   // Update the timer when in active focus mode
   useEffect(() => {
-    let intervalId: NodeJS.Timeout;
+    let intervalId: ReturnType<typeof setInterval>;
 
     if (isActive) {
       intervalId = setInterval(() => {
@@ -42,6 +44,14 @@ const FocusStatus = ({
       // Trigger haptic feedback when focus mode is activated
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } else {
+      // Calculate session duration when focus mode ends
+      const sessionDuration = new Date().getTime() - startTime.getTime();
+      
+      // Only trigger session end if the session was actually active (not just initialized)
+      if (sessionDuration > 1000) { // At least 1 second to be considered a real session
+        onSessionEnd(sessionDuration);
+      }
+      
       setElapsedTime("00:00:00");
 
       // Trigger haptic feedback when focus mode is deactivated
