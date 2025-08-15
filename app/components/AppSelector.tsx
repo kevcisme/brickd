@@ -115,9 +115,13 @@ const AppSelector = ({
         ? prev.filter((id) => id !== appId)
         : [...prev, appId];
 
-      onSelectionChange(newSelection);
       return newSelection;
     });
+  };
+
+  const handleConfirmSelection = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onSelectionChange(selectedApps);
   };
 
   const renderAppItem = ({ item }: { item: App }) => {
@@ -204,11 +208,22 @@ const AppSelector = ({
         className="flex-1"
       />
 
-      <View className="p-4 border-t border-gray-200">
+      <View className="p-4 border-t border-gray-200 space-y-3">
         <Text className="text-center text-gray-500">
           {selectedApps.length} app{selectedApps.length !== 1 ? "s" : ""}{" "}
           selected
         </Text>
+        <TouchableOpacity
+          onPress={handleConfirmSelection}
+          className={`py-3 px-6 rounded-lg ${selectedApps.length > 0 ? "bg-blue-500" : "bg-gray-300"}`}
+          disabled={selectedApps.length === 0}
+        >
+          <Text
+            className={`text-center font-medium ${selectedApps.length > 0 ? "text-white" : "text-gray-500"}`}
+          >
+            Confirm Selection
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
