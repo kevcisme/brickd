@@ -20,6 +20,7 @@ interface NFCTagManagerProps {
   onTagScanned?: (tagId: string) => void;
   onTagRegistered?: (tag: NFCTag) => void;
   onTagRemoved?: (tagId: string) => void;
+  onScanError?: () => void;
   registeredTags?: NFCTag[];
 }
 
@@ -27,6 +28,7 @@ const NFCTagManager = ({
   onTagScanned = () => {},
   onTagRegistered = () => {},
   onTagRemoved = () => {},
+  onScanError = () => {},
   registeredTags = [
     { id: "tag-001", name: "Office Tag", dateAdded: "2023-10-15" },
     { id: "tag-002", name: "Home Tag", dateAdded: "2023-10-20" },
@@ -56,6 +58,27 @@ const NFCTagManager = ({
     // Simulate finding a tag after scanning completes
     setTimeout(() => {
       setIsScanning(false);
+
+      // Simulate random chance of finding a tag (70% success rate)
+      const tagFound = Math.random() > 0.3;
+
+      if (!tagFound) {
+        // Tag not found - show error and call onScanError
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert(
+          "No Tag Found",
+          "No NFC tag was detected. Please try again or make sure the tag is close to your device.",
+          [
+            {
+              text: "OK",
+              onPress: () => onScanError(),
+            },
+          ],
+        );
+        return;
+      }
+
+      // Tag found successfully
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       // In a real implementation, this would be the actual tag ID from NFC scan
@@ -63,31 +86,31 @@ const NFCTagManager = ({
         .toString()
         .padStart(3, "0")}`;
 
-      Alert.prompt(
-        "Tag Found",
-        "Give this tag a name:",
-        [
-          {
-            text: "Cancel",
-            style: "cancel",
-            onPress: () => setIsScanning(false),
+      // Use Alert.alert with input simulation instead of Alert.prompt
+      Alert.alert("Tag Found", "Give this tag a name:", [
+        {
+          text: "Cancel",
+          style: "cancel",
+          onPress: () => setIsScanning(false),
+        },
+        {
+          text: "Register",
+          onPress: () => {
+            // For now, use a default name. In a real app, you'd use a TextInput modal
+            const defaultName = `Tag ${newTagId.slice(-3)}`;
+            const newTag = {
+              id: newTagId,
+              name: defaultName,
+              dateAdded: new Date().toISOString().split("T")[0],
+            };
+            onTagRegistered(newTag);
+            Alert.alert(
+              "Success",
+              `Tag "${defaultName}" registered successfully!`,
+            );
           },
-          {
-            text: "Register",
-            onPress: (name = "My Tag") => {
-              const newTag = {
-                id: newTagId,
-                name: name,
-                dateAdded: new Date().toISOString().split("T")[0],
-              };
-              onTagRegistered(newTag);
-              Alert.alert("Success", `Tag "${name}" registered successfully!`);
-            },
-          },
-        ],
-        "plain-text",
-        "My Tag",
-      );
+        },
+      ]);
     }, 500);
   };
 
